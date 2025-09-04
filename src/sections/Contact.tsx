@@ -1,68 +1,88 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
-import { Phone, Mail, MessageSquare, MapPin, Send, CheckCircle } from 'lucide-react';
+import { Phone, Mail, MessageSquare, MapPin, Send, CheckCircle, XCircle } from 'lucide-react';
+import emailjs from '@emailjs/browser';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+
+// Zod schema for validation
+const contactSchema = z.object({
+  name: z.string().min(1, 'Full Name is required'),
+  email: z.string().email('Invalid email address'),
+  phone: z.string().regex(/^\+?\d{7,15}$/, 'Invalid phone number'),
+  message: z.string().min(1, 'Message is required'),
+});
+
+type ContactForm = z.infer<typeof contactSchema>;
+
+const contactInfo = [
+  {
+    icon: Phone,
+    title: 'Phone',
+    content: '+252 613 328 355',
+    href: 'tel:+252613328355',
+    color: 'from-blue-500 to-cyan-600',
+  },
+  {
+    icon: MessageSquare,
+    title: 'WhatsApp',
+    content: '+252 613 328 355',
+    href: 'https://wa.me/252613328355',
+    color: 'from-green-500 to-emerald-600',
+  },
+  {
+    icon: Mail,
+    title: 'Email',
+    content: 'info@4smart.org.so',
+    href: 'mailto:info@4smart.org.so',
+    color: 'from-purple-500 to-indigo-600',
+  },
+  {
+    icon: MapPin,
+    title: 'Location',
+    content: 'Mogadishu, Somalia',
+    href: '#',
+    color: 'from-orange-500 to-red-600',
+  },
+];
+
+const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+const PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
 const Contact: React.FC = () => {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    message: '',
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<ContactForm>({
+    resolver: zodResolver(contactSchema),
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const [toast, setToast] = React.useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const onSubmit = async (data: ContactForm) => {
+    try {
+      await emailjs.send(
+        SERVICE_ID,
+        TEMPLATE_ID,
+        {
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          message: data.message,
+        },
+        PUBLIC_KEY
+      );
+      setToast({ type: 'success', message: 'Message sent! We\'ll get back to you within 24 hours.' });
+      reset();
+    } catch (err) {
+      setToast({ type: 'error', message: 'Failed to send message. Please try again later.' });
+    }
+    setTimeout(() => setToast(null), 5000);
   };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    
-    // Simulate form submission
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setIsSubmitted(true);
-      setFormData({ name: '', email: '', phone: '', message: '' });
-      
-      setTimeout(() => setIsSubmitted(false), 5000);
-    }, 2000);
-  };
-
-  const contactInfo = [
-    {
-      icon: Phone,
-      title: 'Phone',
-      content: '+252 613 328 355',
-      href: 'tel:+252613328355',
-      color: 'from-blue-500 to-cyan-600',
-    },
-    {
-      icon: MessageSquare,
-      title: 'WhatsApp',
-      content: '+252 613 328 355',
-      href: 'https://wa.me/252613328355',
-      color: 'from-green-500 to-emerald-600',
-    },
-    {
-      icon: Mail,
-      title: 'Email',
-      content: 'info@4smart.org.so',
-      href: 'mailto:info@4smart.org.so',
-      color: 'from-purple-500 to-indigo-600',
-    },
-    {
-      icon: MapPin,
-      title: 'Location',
-      content: 'Mogadishu, Somalia',
-      href: '#',
-      color: 'from-orange-500 to-red-600',
-    },
-  ];
 
   return (
     <section id="contact" className="py-20 lg:py-32 bg-white">
@@ -93,7 +113,6 @@ const Contact: React.FC = () => {
             className="lg:col-span-1"
           >
             <h3 className="text-2xl font-bold text-gray-900 mb-8">Contact Information</h3>
-            
             <div className="space-y-6">
               {contactInfo.map((info, index) => (
                 <motion.a
@@ -116,8 +135,6 @@ const Contact: React.FC = () => {
                 </motion.a>
               ))}
             </div>
-
-            {/* Additional Info */}
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -142,132 +159,151 @@ const Contact: React.FC = () => {
             transition={{ duration: 0.8 }}
             className="lg:col-span-2"
           >
-            <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+            <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 relative">
               <h3 className="text-2xl font-bold text-gray-900 mb-8">Send us a Message</h3>
               
-              {isSubmitted ? (
+              {/* Toast/Alert */}
+              {toast && (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="text-center py-12"
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`absolute top-4 left-1/2 -translate-x-1/2 z-10 px-6 py-4 rounded-xl shadow-lg flex items-center space-x-3 ${
+                    toast.type === 'success'
+                      ? 'bg-green-50 border border-green-200'
+                      : 'bg-red-50 border border-red-200'
+                  }`}
                 >
-                  <CheckCircle className="text-green-600 mx-auto mb-4" size={64} />
-                  <h4 className="text-2xl font-bold text-gray-900 mb-2">Message Sent!</h4>
-                  <p className="text-gray-600">We'll get back to you within 24 hours.</p>
+                  {toast.type === 'success' ? (
+                    <CheckCircle className="text-green-600" size={32} />
+                  ) : (
+                    <XCircle className="text-red-600" size={32} />
+                  )}
+                  <span className={`font-semibold ${toast.type === 'success' ? 'text-green-800' : 'text-red-800'}`}>
+                    {toast.message}
+                  </span>
                 </motion.div>
-              ) : (
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.5, delay: 0.1 }}
-                    >
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Full Name *
-                      </label>
-                      <input
-                        type="text"
-                        name="name"
-                        required
-                        value={formData.name}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                        placeholder="Your full name"
-                      />
-                    </motion.div>
+              )}
 
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.5, delay: 0.2 }}
-                    >
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Email Address *
-                      </label>
-                      <input
-                        type="email"
-                        name="email"
-                        required
-                        value={formData.email}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                        placeholder="your.email@example.com"
-                      />
-                    </motion.div>
-                  </div>
-
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                <div className="grid md:grid-cols-2 gap-6">
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
-                    transition={{ duration: 0.5, delay: 0.3 }}
+                    transition={{ duration: 0.5, delay: 0.1 }}
                   >
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Phone Number
+                      Full Name *
                     </label>
                     <input
-                      type="tel"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                      placeholder="+252 XXX XXX XXX"
+                      type="text"
+                      {...register('name')}
+                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 ${
+                        errors.name ? 'border-red-400' : 'border-gray-300'
+                      }`}
+                      placeholder="Your full name"
                     />
+                    {errors.name && (
+                      <span className="text-red-500 text-xs mt-1 block">{errors.name.message}</span>
+                    )}
                   </motion.div>
 
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
-                    transition={{ duration: 0.5, delay: 0.4 }}
+                    transition={{ duration: 0.5, delay: 0.2 }}
                   >
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Message *
+                      Email Address *
                     </label>
-                    <textarea
-                      name="message"
-                      required
-                      rows={6}
-                      value={formData.message}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                      placeholder="Tell us about your farming needs and how we can help..."
+                    <input
+                      type="email"
+                      {...register('email')}
+                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 ${
+                        errors.email ? 'border-red-400' : 'border-gray-300'
+                      }`}
+                      placeholder="your.email@example.com"
                     />
-                  </motion.div>
-
-                  <motion.button
-                    type="submit"
-                    disabled={isSubmitting}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.5, delay: 0.5 }}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className={`w-full py-4 rounded-lg font-semibold text-lg flex items-center justify-center space-x-2 transition-all duration-300 ${
-                      isSubmitting
-                        ? 'bg-gray-400 cursor-not-allowed'
-                        : 'bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl'
-                    }`}
-                  >
-                    {isSubmitting ? (
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                        className="w-6 h-6 border-2 border-white border-t-transparent rounded-full"
-                      />
-                    ) : (
-                      <>
-                        <Send size={20} />
-                        <span>Send Message</span>
-                      </>
+                    {errors.email && (
+                      <span className="text-red-500 text-xs mt-1 block">{errors.email.message}</span>
                     )}
-                  </motion.button>
-                </form>
-              )}
+                  </motion.div>
+                </div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: 0.3 }}
+                >
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Phone Number *
+                  </label>
+                  <input
+                    type="tel"
+                    {...register('phone')}
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 ${
+                      errors.phone ? 'border-red-400' : 'border-gray-300'
+                    }`}
+                    placeholder="+252 XXX XXX XXX"
+                  />
+                  {errors.phone && (
+                    <span className="text-red-500 text-xs mt-1 block">{errors.phone.message}</span>
+                  )}
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: 0.4 }}
+                >
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Message *
+                  </label>
+                  <textarea
+                    rows={6}
+                    {...register('message')}
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 ${
+                      errors.message ? 'border-red-400' : 'border-gray-300'
+                    }`}
+                    placeholder="Tell us about your farming needs and how we can help..."
+                  />
+                  {errors.message && (
+                    <span className="text-red-500 text-xs mt-1 block">{errors.message.message}</span>
+                  )}
+                </motion.div>
+
+                <motion.button
+                  type="submit"
+                  disabled={isSubmitting}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: 0.5 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`w-full py-4 rounded-lg font-semibold text-lg flex items-center justify-center space-x-2 transition-all duration-300 ${
+                    isSubmitting
+                      ? 'bg-gray-400 cursor-not-allowed'
+                      : 'bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl'
+                  }`}
+                >
+                  {isSubmitting ? (
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                      className="w-6 h-6 border-2 border-white border-t-transparent rounded-full"
+                    />
+                  ) : (
+                    <>
+                      <Send size={20} />
+                      <span>Send Message</span>
+                    </>
+                  )}
+                </motion.button>
+              </form>
             </div>
           </motion.div>
         </div>
